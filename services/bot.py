@@ -11,10 +11,21 @@ from telegram.ext import (
     filters,
 )
 
+from langchain.vectorstores import Chroma
+from langchain_community.embeddings import OpenAIEmbeddings
+
 with open('../credentials.json', 'r') as f:
     credentials = json.load(f)
 
+OPENAI_API_KEY = credentials["OPENAI_API_KEY"]
 TELEGRAM_TOKEN = credentials["TELEGRAM_TOKEN"]
+
+embeddings=OpenAIEmbeddings(api_key=OPENAI_API_KEY)
+vectorstore = Chroma(collection_name='engineering_store',
+                     embedding_function=embeddings,
+                     persist_directory="../db")
+collection = vectorstore.get()
+retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 3})
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -56,6 +67,7 @@ async def choosing(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("User %s choice command.", user)
 
     if text == "Выдача релевантных документов":
+        await update.message.reply_text("Введите вопрос:")
         return RELEVANCE
 
     if text == "Режим для начинающих":
@@ -77,13 +89,23 @@ async def choosing(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def relevance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """"Get relevance"""
 
+    global retriever
+
     user = update.message.from_user.username
     logger.info("User %s call relevance.", user)
 
-    await update.message.reply_text(
-        "Функция не реализована. Выберите пункт меню.",
-        reply_markup=markup
-    )
+    text = update.message.text
+
+    relevant_documents = []
+    retrieve_documents = retriever.get_relevant_documents(text)
+    for doc in retrieve_documents:
+        doc_name = doc.metadata["source"].split("\\")[1][:-4]
+        if doc_name not in relevant_documents:
+            relevant_documents.append(doc_name)
+
+    await update.message.reply_text("Список релевантных документов:\n"+"\n".join(relevant_documents))
+
+    await update.message.reply_text("Возвращаю в меню.", reply_markup=markup)
 
     return CHOOSING
 
