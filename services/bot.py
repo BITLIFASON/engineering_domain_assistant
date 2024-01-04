@@ -38,7 +38,12 @@ llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, api_key=OPENAI_API_K
 setup_and_retrieval = RunnableParallel(
     {"context": retriever, "question": RunnablePassthrough()}
 )
-template = "Контекст: {context}\n\nИспользуя контекст, ответь на вопрос: {question}"
+template = "Контекст: {context}\n\n"\
+           "Используя контекст, ответь на вопрос: {question}."\
+           "Если в данном контексте нет нужной информации, то отвечай:\n"\
+           "Извините, не нашёл информации по этому вопросу"
+
+
 prompt = ChatPromptTemplate.from_template(template)
 output_parser = StrOutputParser()
 
@@ -121,7 +126,7 @@ async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(llm_output)
 
-    if 'В данном контексте нет информации' not in llm_output:
+    if 'Извините, не нашёл информации по этому вопросу' not in llm_output:
 
         relevant_documents = []
         for doc in context['context']:
