@@ -121,13 +121,15 @@ async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(llm_output)
 
-    relevant_documents = []
-    for doc in context['context']:
-        doc_name = doc.metadata["source"].split("\\")[-1][:-4]
-        if doc_name not in relevant_documents:
-            relevant_documents.append(doc_name)
+    if 'В данном контексте нет информации' not in llm_output:
 
-    await update.message.reply_text("Список релевантных документов:\n"+"\n".join(relevant_documents))
+        relevant_documents = []
+        for doc in context['context']:
+            doc_name = doc.metadata["source"].split("\\")[-1][:-4]
+            if doc_name not in relevant_documents:
+                relevant_documents.append(doc_name)
+
+        await update.message.reply_text("Список релевантных документов:\n"+"\n".join(relevant_documents))
 
     await update.message.reply_text("Возвращаю в меню.", reply_markup=markup)
 
