@@ -13,6 +13,12 @@ from telegram.ext import (
 
 from langchain.vectorstores import Chroma
 from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.chat_models import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough
+
+
 
 with open('../credentials.json', 'r') as f:
     credentials = json.load(f)
@@ -27,14 +33,23 @@ vectorstore = Chroma(collection_name='engineering_store',
 collection = vectorstore.get()
 retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 3})
 
+llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, api_key=OPENAI_API_KEY)
+
+setup_and_retrieval = RunnableParallel(
+    {"context": retriever, "question": RunnablePassthrough()}
+)
+template = "Контекст: {context}\n\nИспользуя контекст, ответь на вопрос: {question}"
+prompt = ChatPromptTemplate.from_template(template)
+output_parser = StrOutputParser()
+
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-CHOOSING, DONE, RELEVANCE, BEGINNER, OLD, SMART, ERROR = range(7)
+CHOOSING, DONE, ANSWER, BEGINNER, OLD, SMART, ERROR = range(7)
 
 reply_keyboard = [
-    ["Выдача релевантных документов"],
+    ["Получить ответ на вопрос"],
     ["Режим для начинающих"],
     ["Ответ по старым версиям"],
     ["Умный поиск"],
@@ -66,9 +81,9 @@ async def choosing(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     logger.info("User %s choice command.", user)
 
-    if text == "Выдача релевантных документов":
+    if text == "Получить ответ на вопрос":
         await update.message.reply_text("Введите вопрос:")
-        return RELEVANCE
+        return ANSWER
 
     if text == "Режим для начинающих":
         return BEGINNER
@@ -86,20 +101,29 @@ async def choosing(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return DONE
 
 
-async def relevance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """"Get relevance"""
+async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """"Get answer"""
 
     global retriever
+    global setup_and_retrieval
+    global prompt
+    global output_parser
 
     user = update.message.from_user.username
-    logger.info("User %s call relevance.", user)
+    logger.info("User %s get answer.", user)
 
     text = update.message.text
 
+    context = setup_and_retrieval.invoke(text)
+    prompt_with_context = prompt.invoke(context)
+    llm_answer = llm.invoke(prompt_with_context)
+    llm_output = output_parser.invoke(llm_answer)
+
+    await update.message.reply_text(llm_output)
+
     relevant_documents = []
-    retrieve_documents = retriever.get_relevant_documents(text)
-    for doc in retrieve_documents:
-        doc_name = doc.metadata["source"].split("\\")[1][:-4]
+    for doc in context['context']:
+        doc_name = doc.metadata["source"].split("\\")[-1][:-4]
         if doc_name not in relevant_documents:
             relevant_documents.append(doc_name)
 
@@ -189,7 +213,7 @@ def main() -> None:
         entry_points=[CommandHandler("start", start)],
         states={
             CHOOSING: [MessageHandler(filters.TEXT & ~filters.Regex('^Закончить$'), choosing)],
-            RELEVANCE: [MessageHandler(filters.TEXT & ~filters.Regex('^Закончить$'), relevance)],
+            ANSWER: [MessageHandler(filters.TEXT & ~filters.Regex('^Закончить$'), answer)],
             BEGINNER: [MessageHandler(filters.TEXT & ~filters.Regex('^Закончить$'), beginner)],
             OLD: [MessageHandler(filters.TEXT & ~filters.Regex('^Закончить$'), old)],
             SMART: [MessageHandler(filters.TEXT & ~filters.Regex('^Закончить$'), smart)],
