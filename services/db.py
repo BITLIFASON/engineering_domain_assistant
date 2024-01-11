@@ -1,9 +1,54 @@
 import os
+import sqlite3
 
 from langchain.document_loaders import PDFMinerLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from langchain.docstore.document import Document
+
+
+def create_db(db_path):
+    connection = sqlite3.connect(db_path)
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """CREATE TABLE docs(id INTEGER PRIMARY KEY,
+                             name VARCHAR(50),
+                             status VARCHAR(20))"""
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def insert_db(cursor, name_doc, status):
+
+    cursor.execute("SELECT MAX(id) FROM docs LIMIT 1")
+    id_ = cursor.fetchall()[0][0]
+
+    if id_ is not None:
+        id_ += 1
+    else:
+        id_ = 0
+
+    cursor.execute(
+        "INSERT INTO docs (id, name, status) VALUES (?, ?, ?)",
+        (id_, name_doc, status),
+    )
+
+
+def update_db(cursor, name_doc, status):
+
+    cursor.execute(f"SELECT id FROM docs WHERE name='{name_doc}'")
+    id_ = cursor.fetchone()
+
+    if id_ is None:
+        insert_db(cursor, name_doc, status)
+    else:
+        cursor.execute(
+            "UPDATE docs SET id=?, name=?, status=? WHERE id=?",
+            (id_, name_doc, status, id_),
+        )
 
 
 def load_document(file_path: str) -> Document:
