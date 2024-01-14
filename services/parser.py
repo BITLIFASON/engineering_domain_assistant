@@ -1,15 +1,27 @@
 import os
+import time
 import sqlite3
 import requests
 from bs4 import BeautifulSoup
 from db import create_db, update_db
 
 
+dict_urls = {'ГОСТ': 'gostlist',
+             'СП': 'splist'}
+
+
 def verify(session, name_doc):
+
+    print(name_doc)
 
     params_res = {'searchString': name_doc,
                   'searchcatalogbtn': 'Искать'}
-    url = 'https://www.gostinfo.ru/catalog/gostlist'
+
+    type_doc = dict_urls.get(name_doc.split(' ')[0])
+    if type_doc is None:
+        return 'Не известен'
+
+    url = f'https://www.gostinfo.ru/catalog/{type_doc}/'
     r = session.get(url,params=params_res)
     soup = BeautifulSoup(r.text, 'lxml')
 
@@ -22,14 +34,14 @@ def verify(session, name_doc):
 
     desc = soup.find_all('tr')
 
-    doc = desc[10].h3.text
-    status = desc[21].h3.text
+    status = 'Не известен'
+    for i in range(len(desc)):
+        if desc[i].th.text == 'Статус':
+            status = desc[i].h3.text
+            break
 
-    if status != 'Действует':
-        doc = desc[15].h3.text
-        status = desc[23].h3.text
 
-    return doc, status
+    return status
 
 
 def main():
@@ -52,8 +64,9 @@ def main():
     cursor = connection.cursor()
 
     for doc in os.listdir(DOCS_PATH):
-        _, status = verify(session, doc[:-4])
+        status = verify(session, doc[:-4])
         update_db(cursor, doc[:-4], status)
+        time.sleep(1)
 
     connection.commit()
     connection.close()

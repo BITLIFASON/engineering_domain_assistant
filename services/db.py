@@ -46,7 +46,7 @@ def update_db(cursor, name_doc, status):
         insert_db(cursor, name_doc, status)
     else:
         cursor.execute(
-            "UPDATE docs SET id=?, name=?, status=? WHERE id=?",
+            "UPDATE docs SET name=?, status=? WHERE id=?",
             (id_, name_doc, status, id_),
         )
 
