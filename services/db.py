@@ -66,7 +66,7 @@ def processing_content(content: str) -> str:
         .replace("\x0c", "\n")
 
 
-def add_document(vectorstore, data_path, path):
+def add_document(vectorstore, text_splitter, data_path, path):
 
     collection = vectorstore.get()
     names_docs = set(list(map(lambda x: x["source"].split("\\")[-1],
@@ -77,10 +77,8 @@ def add_document(vectorstore, data_path, path):
 
     source_document = load_document(os.path.join(data_path, path))
     source_document.page_content = processing_content(source_document.page_content)
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000,
-                                                   chunk_overlap=100,
-                                                   add_start_index=True)
-    documents = text_splitter.split_documents(source_document)
+
+    documents = text_splitter.split_documents([source_document])
 
     for doc in documents:
         vectorstore.add_documents([doc])

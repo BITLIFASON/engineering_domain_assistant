@@ -13,6 +13,7 @@ from telegram.ext import (
 
 from langchain.vectorstores import Chroma
 from langchain_community.embeddings import OpenAIEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage
@@ -27,8 +28,10 @@ with open('../credentials.json', 'r') as f:
 OPENAI_API_KEY = credentials["OPENAI_API_KEY"]
 TELEGRAM_TOKEN = credentials["TELEGRAM_TOKEN"]
 
+retriever_name = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+embeddings = HuggingFaceEmbeddings(model_name=retriever_name)
+# embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
 
-embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
 vectorstore = Chroma(collection_name='engineering_store',
                      embedding_function=embeddings,
                      persist_directory="../db")
